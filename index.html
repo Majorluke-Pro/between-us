@@ -173,6 +173,16 @@ button.row:active, .row-btn:active { background: var(--press); }
 .ctl.next { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--btn); color: var(--btn-ink); border: 0; font-size: 17px; font-weight: 600; }
 .ctl.next:active { opacity: 0.85; }
 
+/* ---------- Zoom between a pack and its deck ---------- */
+.ghost { position: fixed !important; inset: auto; z-index: 60; margin: 0; overflow: hidden; pointer-events: none; transform: none; }
+.ghost-face {
+  position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; justify-content: space-between;
+  padding: 12px 12px 13px; background: inherit; border-radius: inherit; text-align: left;
+}
+.ghost.serious .pack-top, .ghost.serious .pack-sub { color: color-mix(in srgb, var(--btn-ink) 60%, transparent); }
+.ghost.serious .pack-bar { background: color-mix(in srgb, var(--btn-ink) 22%, transparent); }
+.snap { position: fixed; inset: 0; z-index: 40; pointer-events: none; background: var(--bg); overflow: hidden; }
+
 /* ---------- Deck packs on the home screen ---------- */
 .packs { display: grid; grid-template-columns: 1fr 1fr; gap: 26px 16px; padding: 6px 4px 0; }
 .pack { position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; transition: transform 0.15s ease; }
@@ -1227,9 +1237,137 @@ function openDeck(kind, startId) {
   else { const d = DECKS.find(x => x.id === kind); ids = d.q.map((_, i) => d.id + ":" + i); title = d.name; }
   let order = freshOrder(ids);
   if (startId) order = [startId, ...order.filter(id => id !== startId)];
+  if (view.name === "home") homeScroll = window.scrollY;
   view = { name: "deck", kind, title, order, pos: 0, first: Math.random() < 0.5 ? 0 : 1 };
   render();
   window.scrollTo(0, 0);
+}
+
+function goHome() {
+  view = { name: "home" };
+  render();
+  window.scrollTo(0, homeScroll);
+}
+
+// ---------- Zooming into a deck and back out ----------
+// Tapping a pack lifts its top card out, the home screen falls away behind it, and the card grows
+// into the first card of the deck. Going back runs the same move in reverse. The card changes its
+// real size rather than being scaled, so the text is drawn sharp on every frame.
+const ZOOM_MS = 540;
+const ZOOM_EASE = "cubic-bezier(.22,.8,.24,1)";
+let homeScroll = 0;
+let zooming = false;
+
+const box = (r, radius) => ({ left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px", borderRadius: radius + "px" });
+
+// A frozen copy of the current screen, so it can fall away while the real screen changes underneath.
+function snapshot(originX, originY) {
+  const snap = document.createElement("div");
+  snap.className = "snap";
+  const inner = document.createElement("div");
+  inner.style.transform = `translateY(${-window.scrollY}px)`;
+  [...app.children].forEach(el => (el.classList.contains("bottom-bar") ? snap : inner).appendChild(el.cloneNode(true)));
+  snap.prepend(inner);
+  snap.querySelectorAll("[id]").forEach(el => el.removeAttribute("id"));
+  snap.style.transformOrigin = `${originX}px ${originY}px`;
+  return snap;
+}
+
+// A card-sized stand-in that flies between the pack and the deck, carrying the pack's label on top.
+function makeGhost(card, rect, radius, front) {
+  const ghost = card.cloneNode(true);
+  ghost.removeAttribute("style");
+  ghost.classList.add("ghost");
+  Object.assign(ghost.style, box(rect, radius));
+  const face = document.createElement("div");
+  face.className = "ghost-face";
+  face.innerHTML = front.innerHTML;
+  ghost.appendChild(face);
+  document.body.appendChild(ghost);
+  return { ghost, face };
+}
+
+function openDeckFromPack(pack) {
+  const id = pack.dataset.deck;
+  const front = pack.querySelector(".front");
+  if (zooming) return;
+  if (reduceMotion() || !front) { openDeck(id); return; }
+  zooming = true;
+  const from = front.getBoundingClientRect();
+  const snap = snapshot(from.left + from.width / 2, from.top + from.height / 2);
+  snap.querySelector(`[data-deck="${id}"] .front`).style.visibility = "hidden";
+
+  deck.quietDeal = true;
+  openDeck(id);
+  document.body.appendChild(snap);
+
+  const top = deck.els[0];
+  const to = top.getBoundingClientRect();
+  deck.els.forEach(el => { el.style.opacity = "0"; });
+  const { ghost, face } = makeGhost(top, from, 12, front);
+
+  snap.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(1.08)" }],
+    { duration: 420, easing: "cubic-bezier(.3,.6,.4,1)", fill: "forwards" });
+  const flight = ghost.animate([box(from, 12), box(to, 20)], { duration: ZOOM_MS, easing: ZOOM_EASE, fill: "forwards" });
+  face.animate([{ opacity: 1 }, { opacity: 1, offset: 0.3 }, { opacity: 0, offset: 0.7 }, { opacity: 0 }], { duration: ZOOM_MS, fill: "forwards" });
+  app.querySelectorAll(".topbar, .controls").forEach(el => el.animate(
+    [{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }],
+    { duration: 320, delay: 260, easing: "ease-out", fill: "backwards" }
+  ));
+
+  let landed = false;
+  const land = () => {
+    if (landed) return;
+    landed = true;
+    deck.els.forEach(el => { el.style.opacity = ""; });
+    ghost.remove();
+    snap.remove();
+    // The cards underneath slide out from beneath the one that just landed.
+    deck.els.slice(1).forEach((el, i) => el.animate([{ transform: "none" }, { transform: depthTf(i + 1) }], { duration: 420, easing: EASE_SETTLE }));
+    zooming = false;
+  };
+  flight.onfinish = land;
+  setTimeout(land, ZOOM_MS + 400);
+}
+
+function closeDeck() {
+  if (zooming) return;
+  const kind = view.kind;
+  const top = deck.els[0];
+  const d = DECKS.find(x => x.id === kind);
+  if (reduceMotion() || !top || !d || modeOf(d) !== mode) { goHome(); return; }
+  zooming = true;
+  const from = top.getBoundingClientRect();
+  const card = top.cloneNode(true);
+  goHome();
+
+  const front = app.querySelector(`[data-deck="${kind}"] .front`);
+  const to = front && front.getBoundingClientRect();
+  const page = app.querySelector(".page");
+  if (!to || to.bottom < 0 || to.top > window.innerHeight) {
+    page.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: "ease-out" });
+    zooming = false;
+    return;
+  }
+  const { ghost, face } = makeGhost(card, from, 20, front);
+  front.style.visibility = "hidden";
+  const pr = page.getBoundingClientRect();
+  page.style.transformOrigin = `${to.left + to.width / 2 - pr.left}px ${to.top + to.height / 2 - pr.top}px`;
+  page.animate([{ opacity: 0, transform: "scale(1.08)" }, { opacity: 1, transform: "none" }], { duration: 460, easing: "cubic-bezier(.2,.7,.3,1)" });
+  app.querySelectorAll(".bottom-bar").forEach(el => el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 160, fill: "backwards" }));
+  const flight = ghost.animate([box(from, 20), box(to, 12)], { duration: ZOOM_MS - 40, easing: ZOOM_EASE, fill: "forwards" });
+  face.animate([{ opacity: 0 }, { opacity: 0, offset: 0.25 }, { opacity: 1, offset: 0.7 }, { opacity: 1 }], { duration: ZOOM_MS - 40, fill: "forwards" });
+
+  let landed = false;
+  const land = () => {
+    if (landed) return;
+    landed = true;
+    front.style.visibility = "";
+    ghost.remove();
+    zooming = false;
+  };
+  flight.onfinish = land;
+  setTimeout(land, ZOOM_MS + 400);
 }
 
 // ---------- Card deck ----------
@@ -1329,6 +1467,9 @@ function animateTo(el, to, duration, easing) {
 
 // Deal a fresh pile: used when the deck opens or is reshuffled.
 function buildPile() {
+  // When the deck opens by zooming in from its pack, the zoom is the entrance, so skip the deal.
+  const quiet = deck.quietDeal;
+  deck.quietDeal = false;
   deck.els.forEach(el => { settle(el); el.remove(); });
   deck.pile.querySelectorAll(".card").forEach(el => el.remove());
   deck.els = [];
@@ -1338,7 +1479,7 @@ function buildPile() {
     el.style.transform = depthTf(i);
     deck.pile.appendChild(el);
     deck.els.push(el);
-    if (!reduceMotion()) {
+    if (!reduceMotion() && !quiet) {
       // Slide into place without any scaling on the top card, so the question never looks soft.
       const from = i === 0 ? "translate3d(0, 28px, 0)" : depthTf(i + 0.7);
       el.animate(
@@ -1575,14 +1716,14 @@ function renderSaved() {
 
 app.addEventListener("click", e => {
   const deckBtn = e.target.closest("[data-deck]");
-  if (deckBtn) { openDeck(deckBtn.dataset.deck); return; }
+  if (deckBtn) { openDeckFromPack(deckBtn); return; }
   const b = e.target.closest("[data-act]");
   if (!b) return;
   const act = b.dataset.act;
   if (act === "mode") setMode(b.dataset.mode);
   else if (act === "mix") openDeck("mix");
   else if (act === "saved") { view = { name: "saved" }; render(); window.scrollTo(0, 0); }
-  else if (act === "home") { view = { name: "home" }; render(); window.scrollTo(0, 0); }
+  else if (act === "home") view.name === "deck" ? closeDeck() : goHome();
   else if (act === "next") advance();
   else if (act === "prev") back();
   else if (act === "reshuffle") {
@@ -1617,7 +1758,7 @@ document.addEventListener("keydown", e => {
   if (view.name !== "deck" || e.target.closest("input")) return;
   if (e.key === "ArrowRight") advance();
   else if (e.key === "ArrowLeft") back();
-  else if (e.key === "Escape") { view = { name: "home" }; render(); }
+  else if (e.key === "Escape") closeDeck();
 });
 
 render();
