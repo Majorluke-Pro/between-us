@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Between Us</title>
+<meta name="description" content="Questions for Luke and Mieke.">
+<meta name="theme-color" content="#f2f2f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Between Us">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<style>
+html { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<style>
+/* Layout: phone-first app. Home is a grouped list with the main button fixed at thumb height; the card screen fills the phone with controls at the bottom. Black and white, red only for the heart. */
+:root {
+  --bg: #f2f2f2;
+  --card: #ffffff;
+  --ink: #111111;
+  --muted: #6b6b6b;
+  --faint: #b0b0b0;
+  --line: #e6e6e6;
+  --press: #ececec;
+  --btn: #111111;
+  --btn-ink: #ffffff;
+  --heart: #e0352b;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 10px 28px -14px rgba(0, 0, 0, 0.22);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Roboto, "Segoe UI", Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --card: #1c1c1e; --ink: #f5f5f5; --muted: #9a9a9e; --faint: #5c5c60; --line: #2c2c2e; --press: #2c2c2e;
+    --btn: #f5f5f5; --btn-ink: #000000; --heart: #ff5a4f;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 10px 28px -14px rgba(0, 0, 0, 0.9);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000; --card: #1c1c1e; --ink: #f5f5f5; --muted: #9a9a9e; --faint: #5c5c60; --line: #2c2c2e; --press: #2c2c2e;
+  --btn: #f5f5f5; --btn-ink: #000000; --heart: #ff5a4f;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 10px 28px -14px rgba(0, 0, 0, 0.9);
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 17px; line-height: 1.4;
+  -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; text-align: inherit; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+#app { height: 100%; }
+
+.ic { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.on .ic.fillable, .ic.filled { fill: currentColor; }
+
+/* ---------- Scrolling pages (home, saved) ---------- */
+.page {
+  max-width: 560px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px calc(104px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 28px;
+}
+.home-head h1 { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.home-head p { margin: 4px 0 0; color: var(--muted); }
+
+.today {
+  display: flex; flex-direction: column; gap: 14px; width: 100%;
+  background: var(--card); border-radius: 16px; padding: 18px; box-shadow: var(--shadow);
+}
+.today:active { background: var(--press); }
+.small-label { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.today-q { font-size: 23px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; }
+.today-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 15px; color: var(--muted); }
+.today-foot .open { color: var(--ink); font-weight: 600; display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+.today-foot .ic { width: 18px; height: 18px; }
+
+.group-label { margin: 0 0 8px 16px; }
+.group { background: var(--card); border-radius: 14px; overflow: hidden; }
+.row {
+  position: relative; display: flex; align-items: center; gap: 14px; width: 100%; min-height: 60px;
+  padding: 10px 12px 10px 16px; text-align: left;
+}
+button.row:active, .row-btn:active { background: var(--press); }
+.group > * + *::before { content: ""; position: absolute; top: 0; left: 52px; right: 0; height: 1px; background: var(--line); }
+.group > .plain-row + .plain-row::before { left: 16px; }
+.row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.row-title { font-weight: 600; }
+.row-sub { font-size: 14px; color: var(--muted); }
+.row-meta { font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chev { width: 18px; height: 18px; color: var(--faint); }
+.row.danger .row-title { color: var(--heart); font-weight: 500; }
+
+.field input {
+  flex: 1 1 0; width: 0; min-width: 0; height: 40px; margin: 0; border: 0; background: transparent; color: var(--ink);
+  font: inherit; text-align: right; padding: 0 4px; -webkit-appearance: none; appearance: none;
+}
+.field input::placeholder { color: var(--faint); }
+.confirm { flex-wrap: wrap; }
+.pill { min-height: 40px; padding: 0 16px; border-radius: 999px; font-size: 15px; font-weight: 600; background: var(--press); }
+.pill.red { background: var(--heart); color: #ffffff; }
+
+.empty { margin: 0; padding: 32px 20px; text-align: center; color: var(--muted); background: var(--card); border-radius: 14px; }
+
+.bottom-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; background: var(--bg);
+  padding-top: 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.bottom-bar .btn { display: flex; width: 100%; max-width: 528px; margin: 0 auto; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 54px; padding: 0 20px; border-radius: 14px; font-size: 17px; font-weight: 600; }
+.btn:active { opacity: 0.85; }
+.btn.primary { background: var(--btn); color: var(--btn-ink); }
+.btn.outline { border: 1px solid var(--line); }
+
+/* ---------- Top bar ---------- */
+.topbar {
+  display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 8px; padding-block: 6px; flex: none;
+}
+.topbar.sticky { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); margin-bottom: -16px; }
+.icon-btn { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--ink); }
+.icon-btn:active { background: var(--press); }
+.icon-btn.red { color: var(--heart); }
+.tb { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.tb-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tb-sub { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---------- Card screen ---------- */
+.screen {
+  height: 100%; min-height: 560px; max-width: 560px; margin: 0 auto; display: flex; flex-direction: column;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.pile { position: relative; flex: 1; min-height: 340px; margin: 8px 0 34px; }
+.stack { position: absolute; inset: 0; border-radius: 20px; background: var(--card); box-shadow: var(--shadow); }
+.stack.s1 { transform: translateY(calc(2.5% + 9px)) scale(0.95); opacity: 0.75; }
+.stack.s2 { transform: translateY(calc(5% + 18px)) scale(0.9); opacity: 0.45; }
+.card {
+  position: absolute; inset: 0; border-radius: 20px; background: var(--card); color: var(--ink); box-shadow: var(--shadow);
+  padding: 22px 22px 20px; display: flex; flex-direction: column;
+  touch-action: pan-y; user-select: none; -webkit-user-select: none;
+}
+.card-head { display: flex; justify-content: space-between; align-items: center; color: var(--muted); }
+.card-head .ic { width: 20px; height: 20px; }
+.q { margin: auto 0; font-size: clamp(26px, 7.6vw, 34px); font-weight: 700; line-height: 1.2; letter-spacing: -0.015em; }
+.card-foot { font-size: 15px; color: var(--muted); }
+.card-foot b { color: var(--ink); font-weight: 600; }
+
+.card.end { justify-content: center; gap: 10px; }
+.end-title { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+.end-text { margin: 0 0 12px; color: var(--muted); }
+.end-actions { display: flex; flex-direction: column; gap: 10px; }
+
+.controls { flex: none; display: grid; grid-template-columns: 54px 54px 1fr; gap: 10px; }
+.ctl { height: 54px; border-radius: 14px; display: grid; place-items: center; background: var(--card); border: 1px solid var(--line); }
+.ctl:active { background: var(--press); }
+.ctl:disabled { opacity: 0.35; cursor: default; }
+.ctl.heart.on { color: var(--heart); }
+.ctl.next { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--btn); color: var(--btn-ink); border: 0; font-size: 17px; font-weight: 600; }
+.ctl.next:active { opacity: 0.85; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div id="app"></div>
+
+<script>
+const DECKS = [
+  {
+    id: "past", name: "Back Then", icon: "past", depth: 2,
+    q: [
+      "What's the earliest memory you're sure is really yours?",
+      "Which smell from your childhood takes you straight back somewhere?",
+      "Who was your favorite person to be around as a kid, and why?",
+      "What did you want to be when you grew up, and what happened to that dream?",
+      "What's a moment from your teenage years you'd love to relive for one day?",
+      "What's something your parents did that you only understood years later?",
+      "When was the first time you felt truly proud of yourself?",
+      "What's a mistake from your past that taught you the most?",
+      "Which friendship from your past do you still think about?",
+      "What was your bedroom like growing up, and what was on the walls?",
+      "What's a family tradition you loved, and one you secretly didn't?",
+      "What's the hardest thing you've been through, and what got you through it?",
+      "What was your honest first impression of me?",
+      "What do you remember most clearly about our first date?",
+      "What's a song that defined a whole year of your life?",
+      "What were you most afraid of as a child?",
+      "Who is someone from your past you never got to thank properly?",
+      "What's a version of yourself you've outgrown, and do you miss anything about them?",
+      "What's the best advice someone gave you when you were young?",
+      "When is a time you felt completely free?",
+      "What did love look like in the house you grew up in?",
+      "What's a decision that changed the whole direction of your life?",
+      "What's the bravest thing you did before we met?",
+      "Which teacher or mentor shaped you the most, and how?",
+      "What's a memory you've never told anyone?"
+    ]
+  },
+  {
+    id: "present", name: "Right Now", icon: "present", depth: 2,
+    q: [
+      "What's taking up most of the space in your head lately?",
+      "What's one small thing that made you happy this week?",
+      "Out of ten, how rested do you feel right now, and what would move it up one point?",
+      "What are you looking forward to right now?",
+      "What's draining your energy at the moment?",
+      "What part of your daily routine would you never give up?",
+      "What do you need more of from me right now?",
+      "What do you need less of in your life right now?",
+      "What are you proud of yourself for lately, even if it's small?",
+      "What have you been meaning to tell me but haven't found the moment for?",
+      "If today were a weather forecast, what would it be?",
+      "What's a worry you've been carrying quietly?",
+      "Who in your life are you most grateful for right now?",
+      "What are you learning about yourself these days?",
+      "What does a perfect ordinary evening look like for you right now?",
+      "What's one thing you'd like to stop overthinking?",
+      "What's a habit you're trying to build or break?",
+      "How are you, really, beyond “fine”?",
+      "What's the best part of your life right now?",
+      "What's something about us that feels really good at the moment?",
+      "What's one thing I could do this week to make your life easier?",
+      "Which of your friendships feels strongest right now?",
+      "When did you last feel completely at peace?",
+      "What are you most curious about right now?",
+      "What's something you've changed your mind about recently?"
+    ]
+  },
+  {
+    id: "future", name: "Someday", icon: "future", depth: 2,
+    q: [
+      "Where do you see us in five years, if everything goes right?",
+      "What does home look like in your dream future?",
+      "What's one place we absolutely have to travel to together?",
+      "What kind of old couple do you think we'll be?",
+      "What's a skill you want to master in the next ten years?",
+      "What do you hope people say about you when you're eighty?",
+      "What do you want to have done before your next big birthday?",
+      "How do you picture a normal Sunday ten years from now?",
+      "What's a dream you've been scared to say out loud?",
+      "If money weren't a factor, how would you spend your days?",
+      "What's a tradition you want us to start?",
+      "What are you most excited about in our future?",
+      "What are you most nervous about in our future?",
+      "What does success mean to you in the long run?",
+      "How do you want to grow as a person in the next year?",
+      "What city or country could you see us living in someday?",
+      "What would you like our relationship to have that it doesn't have yet?",
+      "What adventure do you want us to have while we're still young?",
+      "What do you want to be doing more of a year from now?",
+      "Is there anything you'd love us to build together?",
+      "What do you hope never changes between us?",
+      "What's a risk you'd like to take someday?",
+      "What would your ideal retirement look like?",
+      "What do you want our home to feel like when someone walks in?",
+      "If we planned one perfect day a year from now, what would we do?"
+    ]
+  },
+  {
+    id: "us", name: "The Two of Us", icon: "us", depth: 2,
+    q: [
+      "When did you first realize you had feelings for me?",
+      "What's a moment with me you replay in your head?",
+      "What's something I do that makes you feel really loved?",
+      "What's a little habit of mine you secretly adore?",
+      "When do you feel closest to me?",
+      "What's something you'd like us to do more often?",
+      "How do you like to be comforted when you're upset?",
+      "What's one thing you've learned from me?",
+      "What's our best inside joke, and where did it come from?",
+      "What do you think we're really good at as a team?",
+      "What's something we could get better at as a couple?",
+      "What's your favorite photo of us, and why?",
+      "What do you remember about the first time we said “I love you”?",
+      "What surprised you about me once we got together?",
+      "How can you tell when I'm having a bad day?",
+      "What's a disagreement we had that actually made us stronger?",
+      "What's a song that makes you think of me?",
+      "What do you think I'm still learning about you?",
+      "How have I changed since we met?",
+      "What's the most romantic thing I've ever done for you?",
+      "What makes you feel safe with me?",
+      "If you could relive one day of our relationship, which would it be?",
+      "What do you want me to understand about the way you love?",
+      "What's your favorite thing to do together when we have nothing planned?",
+      "What's one promise you'd like us to make to each other?"
+    ]
+  },
+  {
+    id: "deep", name: "The Deep End", icon: "deep", depth: 3,
+    q: [
+      "What do you think happens after we die?",
+      "What do you believe the purpose of your life is?",
+      "If you could know the answer to one question about the universe, what would you ask?",
+      "What's something you believe that most people don't?",
+      "When do you feel most like yourself?",
+      "What part of yourself do you hide from most people?",
+      "What does it mean to live a good life?",
+      "If you could sit with your younger self for an hour, what would you say?",
+      "What scares you most about getting older?",
+      "Do you think people can truly change?",
+      "What's something you've forgiven but never forgotten?",
+      "What would you regret not doing if your life ended tomorrow?",
+      "What makes you feel small, in a good way?",
+      "What's the most important lesson life has taught you so far?",
+      "Is there anything you're still trying to make peace with?",
+      "When have you felt the most alone, and what helped?",
+      "What does happiness feel like in your body?",
+      "What truth did you have to learn the hard way?",
+      "If you could erase one memory, would you? Which one?",
+      "What do you think you were put here to give?",
+      "What do you hope to understand before the end of your life?",
+      "How do you want to be remembered?",
+      "Do you believe in fate, or do we make everything ourselves?",
+      "What does unconditional love mean to you?",
+      "What are you still searching for?"
+    ]
+  },
+  {
+    id: "values", name: "What Matters", icon: "values", depth: 3,
+    q: [
+      "What's one value you'd never compromise on?",
+      "What does loyalty mean to you?",
+      "What does a healthy argument look like to you?",
+      "How important is faith or spirituality in your life?",
+      "What do you think we owe our families?",
+      "How do you feel about money: saving, spending, and sharing?",
+      "What does respect look like in a relationship?",
+      "What's a cause or issue you really care about?",
+      "How should we handle it when we disagree about something big?",
+      "What role do you want friends to play in our life together?",
+      "What's something you think every child should be taught?",
+      "How do you define being a good partner?",
+      "What matters more to you: adventure or stability?",
+      "What does “home” mean to you beyond a place?",
+      "How do you want to share the everyday stuff: chores, plans, decisions?",
+      "What do you think makes a relationship last a lifetime?",
+      "What's a value from your parents you want to keep?",
+      "What's one you want to leave behind?",
+      "How much time alone do you need to feel like yourself?",
+      "What does honesty mean to you when it's uncomfortable?",
+      "How do you feel about balancing work and the rest of life?",
+      "What should we do if one of us gets a dream opportunity far away?",
+      "What does generosity look like to you?",
+      "How do you want us to celebrate the big moments in life?"
+    ]
+  },
+  {
+    id: "closer", name: "Closer", icon: "closer", depth: 2,
+    q: [
+      "What's the first thing you noticed about me?",
+      "What's your idea of a perfect date night in?",
+      "When do you find me most attractive?",
+      "What's a compliment from me you still remember?",
+      "What small touch or gesture makes you melt instantly?",
+      "What's something romantic you've always wanted to do but never have?",
+      "What makes you feel desired?",
+      "Which outfit of mine is your favorite?",
+      "How do you like to be woken up?",
+      "What's your favorite way to spend a lazy morning together?",
+      "What would you love me to surprise you with?",
+      "What's the most romantic moment of your life so far?",
+      "Do you prefer grand gestures or small everyday ones?",
+      "What song would you want us to slow dance to?",
+      "What's something about our physical connection you'd like more of?",
+      "When did you last get butterflies because of me?",
+      "What do you love about the way I look at you?",
+      "Which romantic movie scene would you want to recreate with me?",
+      "What makes you feel confident around me?",
+      "Where would you take me for the most romantic weekend possible?",
+      "What's something you've wanted to tell me but felt shy about?",
+      "What makes a kiss unforgettable for you?",
+      "What's a love letter-worthy moment between us?",
+      "Where is the most romantic place you'd want to kiss me?"
+    ]
+  },
+  {
+    id: "whatif", name: "What If", icon: "whatif", depth: 1,
+    q: [
+      "If we could live anywhere in the world for one year, where would we go?",
+      "If you had any superpower for a week, what would you do with it?",
+      "If we won the lottery tomorrow, what's the first thing you'd do?",
+      "If you could swap lives with anyone for a day, who would it be?",
+      "If you could play any instrument instantly, which would you pick?",
+      "If we started a business together, what would it be?",
+      "If you could time travel to any era for a week, where would you go?",
+      "If you could only eat one cuisine forever, what would it be?",
+      "If our life were a movie, what genre would it be and who would play us?",
+      "If you could ask your future self one question, what would it be?",
+      "If you had to teach a class on anything, what would it be?",
+      "If you got one extra hour every day, what would you use it for?",
+      "If we had a theme song, what would it be?",
+      "If you designed our dream house, what's the one wild room it would have?",
+      "If you could have dinner with any three people, living or dead, who would you choose?",
+      "If you woke up as me for a day, what would you do?",
+      "If you could become an expert in something overnight, what would you choose?",
+      "If we were stranded on an island, what would each of us be in charge of?",
+      "If you could relive any age for a year, which would it be?",
+      "If you could erase one invention from history, which would it be?",
+      "If you could live in any fictional world, which one?",
+      "If you gave up your phone for a month, what would you miss most?",
+      "If we had a pet that could talk, what would it say about us?",
+      "If you could know one thing about the future, what would you want to know?"
+    ]
+  },
+  {
+    id: "fun", name: "Just for Fun", icon: "fun", depth: 1,
+    q: [
+      "What's your most irrational fear?",
+      "What's the weirdest food combination you actually love?",
+      "What's a talent you have that I don't know about yet?",
+      "What's the most embarrassing thing that happened to you at school?",
+      "Which celebrity do people say you look like?",
+      "What would your last meal be?",
+      "What's the silliest argument we've ever had?",
+      "What's your go-to karaoke song?",
+      "What's something you pretend to like but actually don't?",
+      "What's my most annoying habit? Be nice.",
+      "What's the worst haircut you've ever had?",
+      "What's a word you always mispronounce or misspell?",
+      "Which of us would survive longer in a zombie apocalypse, and why?",
+      "What's the most useless thing you know a lot about?",
+      "What's your guilty-pleasure show or song?",
+      "Who is more likely to get us lost?",
+      "What's your weirdest pet peeve?",
+      "What's the funniest thing that's happened to us together?",
+      "What would your autobiography be called?",
+      "What's the strangest dream you can remember?",
+      "If your life came with a warning label, what would it say?",
+      "What's the most spontaneous thing you've ever done?",
+      "What were you weirdly good at as a kid?",
+      "What's your most-used phrase, according to everyone but you?"
+    ]
+  },
+  {
+    id: "rather", name: "Would You Rather", icon: "rather", depth: 1,
+    q: [
+      "Would you rather have a cozy cabin in the mountains or a small house by the sea?",
+      "Would you rather relive our first date or skip ahead to see us in ten years?",
+      "Would you rather travel the world for a year or have your dream home right now?",
+      "Would you rather always know what I'm thinking, or have me always know what you're thinking?",
+      "Would you rather have a huge party or a tiny dinner for your next birthday?",
+      "Would you rather talk to animals or speak every human language?",
+      "Would you rather give up music or movies forever?",
+      "Would you rather get breakfast in bed every Sunday or a surprise date every month?",
+      "Would you rather live in the city or the countryside?",
+      "Would you rather go on a long road trip or fly somewhere far away?",
+      "Would you rather have more time or more money?",
+      "Would you rather be famous or quietly rich?",
+      "Would you rather explore space or the deep ocean?",
+      "Would you rather always be ten minutes early or twenty minutes late?",
+      "Would you rather have a dog or a cat together?",
+      "Would you rather get a handwritten letter or a surprise gift?",
+      "Would you rather spend a rainy day in bed or a sunny day at the beach?",
+      "Would you rather know how you'll die or when you'll die?",
+      "Would you rather cook dinner together every night or eat out every night?",
+      "Would you rather have a rewind button or a pause button for your life?",
+      "Would you rather give up social media or takeaway food for a year?",
+      "Would you rather have met me five years earlier or get five extra years at the end?",
+      "Would you rather dance in the rain or watch the stars all night?",
+      "Would you rather be stuck in a lift with your boss or your ex?"
+    ]
+  }
+];
+
+const DEPTH = { 1: "Light", 2: "Warm", 3: "Deep" };
+const SUB = {
+  past: "Childhood and memories", present: "Life at the moment", future: "Plans and dreams",
+  us: "Your relationship", deep: "Life's big questions", values: "Beliefs and priorities",
+  closer: "Romance and attraction", whatif: "Hypotheticals", fun: "Light and silly", rather: "Pick one, then explain"
+};
+
+const ICON = {
+  past: '<path d="M6 3h12M6 21h12M7 3v2c0 3 5 4.5 5 7s-5 4-5 7v2M17 3v2c0 3-5 4.5-5 7s5 4 5 7v2"/>',
+  present: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/>',
+  future: '<path d="M12 2.5l2 7.5 7.5 2-7.5 2-2 7.5-2-7.5-7.5-2 7.5-2z"/>',
+  us: '<circle cx="9" cy="12" r="5.5"/><circle cx="15" cy="12" r="5.5"/>',
+  deep: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5z"/>',
+  values: '<path d="M12 3v17M7 20h10M4 7h16M6.5 7l-3 6.5a3 3 0 0 0 6 0zM17.5 7l-3 6.5a3 3 0 0 0 6 0z"/>',
+  closer: '<path d="M12 3c.6 3.6 6 5.6 6 11a6 6 0 0 1-12 0c0-2.8 1.6-4.3 2.7-6 .3 2 1.3 3.1 2.6 3.3C11 8.5 10.4 6 12 3z"/>',
+  whatif: '<path d="M7 18.5h10.5a4 4 0 0 0 .3-8 6 6 0 0 0-11.6 1.3A3.4 3.4 0 0 0 7 18.5z"/>',
+  fun: '<circle cx="12" cy="12" r="9"/><path d="M8 14.5s1.5 2 4 2 4-2 4-2M9 9.5v1M15 9.5v1"/>',
+  rather: '<path d="M12 21v-7.5M12 13.5 6.5 6M12 13.5 17.5 6M6 5.5h4M6 5.5v4M18 5.5h-4M18 5.5v4"/>',
+  back: '<path d="M15 5l-7 7 7 7"/>',
+  chev: '<path d="M9 5l7 7-7 7"/>',
+  left: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  right: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  heart: '<path d="M12 20s-7.5-4.6-9.2-9.4C1.6 7.2 3.9 4 7.2 4c2 0 3.6 1.1 4.8 2.8C13.2 5.1 14.8 4 16.8 4c3.3 0 5.6 3.2 4.4 6.6C19.5 15.4 12 20 12 20z"/>',
+  shuffle: '<path d="M3 7h3.5c2 0 3.2 1 4.3 2.6l2.4 4.8C14.3 16 15.5 17 17.5 17H21M18 14l3 3-3 3M3 17h3.5c1.4 0 2.4-.5 3.2-1.4M14.3 8.4c.8-.9 1.8-1.4 3.2-1.4H21M18 4l3 3-3 3"/>'
+};
+const svg = (name, cls = "") => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name]}</svg>`;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("between-us:" + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("between-us:" + k, JSON.stringify(v)); } catch (e) {} }
+};
+
+const ALL = [];
+const BY_ID = {};
+DECKS.forEach(d => d.q.forEach((text, i) => {
+  const item = { id: d.id + ":" + i, text, deck: d, n: i + 1 };
+  ALL.push(item);
+  BY_ID[item.id] = item;
+}));
+
+let saved = new Set(store.get("saved", []).filter(id => BY_ID[id]));
+let seen = new Set(store.get("seen", []).filter(id => BY_ID[id]));
+let names = store.get("names", ["Luke", "Mieke"]);
+if (names[1] === "Her") names[1] = "Mieke";
+const persist = () => { store.set("saved", [...saved]); store.set("seen", [...seen]); };
+
+const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+// Unseen cards come first, so opening a deck starts with something new.
+function freshOrder(ids) {
+  return shuffle(ids.filter(id => !seen.has(id))).concat(shuffle(ids.filter(id => seen.has(id))));
+}
+// Picked from the date, so both phones show the same question on the same day.
+function tonight() {
+  const d = new Date();
+  let x = (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) ^ 0x9e3779b9;
+  x = Math.imul(x ^ (x >>> 16), 0x85ebca6b);
+  x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35);
+  x ^= x >>> 16;
+  return ALL[(x >>> 0) % ALL.length];
+}
+
+const app = document.getElementById("app");
+let view = { name: "home" };
+
+function render() {
+  if (view.name === "deck") renderDeck();
+  else if (view.name === "saved") renderSaved();
+  else renderHome();
+}
+
+function renderHome() {
+  const t = tonight();
+  app.innerHTML = `
+    <div class="page">
+      <header class="home-head">
+        <h1>Between Us</h1>
+        <p>${esc(names[0])} &amp; ${esc(names[1])}</p>
+      </header>
+
+      <button class="today" data-act="tonight">
+        <span class="small-label">Today's question</span>
+        <span class="today-q">${esc(t.text)}</span>
+        <span class="today-foot"><span>You both get the same one today</span><span class="open">Open ${svg("chev")}</span></span>
+      </button>
+
+      <section>
+        <h2 class="small-label group-label">Decks</h2>
+        <div class="group">${DECKS.map(deckRow).join("")}</div>
+      </section>
+
+      <div class="group">
+        <button class="row" data-act="saved">${svg("heart")}<span class="row-main"><span class="row-title">Saved questions</span></span><span class="row-meta">${saved.size}</span>${svg("chev", "chev")}</button>
+      </div>
+
+      <section>
+        <h2 class="small-label group-label">Names</h2>
+        <div class="group">
+          <label class="row plain-row field" for="name-a"><span class="row-title">Player 1</span><input id="name-a" maxlength="18" autocomplete="off" value="${esc(names[0])}"></label>
+          <label class="row plain-row field" for="name-b"><span class="row-title">Player 2</span><input id="name-b" maxlength="18" autocomplete="off" value="${esc(names[1])}"></label>
+        </div>
+      </section>
+
+      <div class="group" id="reset-area">
+        <button class="row plain-row danger" data-act="reset-ask"><span class="row-main"><span class="row-title">Reset progress</span></span></button>
+      </div>
+    </div>
+    <div class="bottom-bar"><button class="btn primary" data-act="mix">${svg("shuffle")} Random card</button></div>`;
+
+  const save = () => {
+    names = [document.getElementById("name-a").value.trim() || "Player 1", document.getElementById("name-b").value.trim() || "Player 2"];
+    store.set("names", names);
+  };
+  document.getElementById("name-a").addEventListener("input", save);
+  document.getElementById("name-b").addEventListener("input", save);
+}
+
+function deckRow(d) {
+  const done = d.q.filter((_, i) => seen.has(d.id + ":" + i)).length;
+  return `
+    <button class="row" data-deck="${d.id}">
+      ${svg(d.icon)}
+      <span class="row-main"><span class="row-title">${esc(d.name)}</span><span class="row-sub">${SUB[d.id]}</span></span>
+      <span class="row-meta">${done}/${d.q.length}</span>${svg("chev", "chev")}
+    </button>`;
+}
+
+function openDeck(kind, startId) {
+  let ids, title;
+  if (kind === "mix") { ids = ALL.map(x => x.id); title = "All decks"; }
+  else if (kind === "saved") { ids = [...saved]; title = "Saved questions"; }
+  else { const d = DECKS.find(x => x.id === kind); ids = d.q.map((_, i) => d.id + ":" + i); title = d.name; }
+  let order = freshOrder(ids);
+  if (startId) order = [startId, ...order.filter(id => id !== startId)];
+  view = { name: "deck", kind, title, order, pos: 0, first: Math.random() < 0.5 ? 0 : 1 };
+  render();
+  window.scrollTo(0, 0);
+}
+
+function renderDeck() {
+  app.innerHTML = `
+    <div class="screen">
+      <div class="topbar">
+        <button class="icon-btn" data-act="home" aria-label="Back">${svg("back")}</button>
+        <div class="tb"><span class="tb-title">${esc(view.title)}</span><span class="tb-sub" id="tb-sub"></span></div>
+        <button class="icon-btn" data-act="reshuffle" aria-label="Shuffle">${svg("shuffle")}</button>
+      </div>
+      <div class="pile">
+        <div class="stack s2" id="s2"></div>
+        <div class="stack s1" id="s1"></div>
+        <article class="card" id="card" aria-live="polite"></article>
+      </div>
+      <div class="controls">
+        <button class="ctl" data-act="prev" id="prev-btn" aria-label="Previous card">${svg("left")}</button>
+        <button class="ctl heart" data-act="save" id="save-btn" aria-label="Save" aria-pressed="false">${svg("heart", "fillable")}</button>
+        <button class="ctl next" data-act="next" id="next-btn">Next ${svg("right")}</button>
+      </div>
+    </div>`;
+  paintCard();
+  bindSwipe(document.getElementById("card"));
+}
+
+function paintCard() {
+  const card = document.getElementById("card");
+  const { order, pos } = view;
+  const total = order.length;
+  const atEnd = pos >= total;
+  const item = BY_ID[order[pos]];
+
+  document.getElementById("tb-sub").textContent = atEnd ? "Finished" : `${pos + 1} of ${total}`;
+  document.getElementById("prev-btn").disabled = pos === 0;
+  document.getElementById("next-btn").disabled = atEnd;
+  const saveBtn = document.getElementById("save-btn");
+  saveBtn.disabled = atEnd;
+  const isSaved = !atEnd && saved.has(item.id);
+  saveBtn.classList.toggle("on", isSaved);
+  saveBtn.setAttribute("aria-pressed", String(isSaved));
+  document.getElementById("s1").hidden = pos + 1 >= total;
+  document.getElementById("s2").hidden = pos + 2 >= total;
+
+  if (atEnd) {
+    card.className = "card end";
+    card.innerHTML = `
+      <p class="end-title">You've finished this deck</p>
+      <p class="end-text">${total === 1 ? "That was the only card." : `All ${total} cards done.`}</p>
+      <div class="end-actions">
+        <button class="btn primary" data-act="reshuffle">Shuffle and start again</button>
+        <button class="btn outline" data-act="home">Back to decks</button>
+      </div>`;
+    return;
+  }
+
+  const who = names[(pos + view.first) % 2];
+  card.className = "card";
+  card.innerHTML = `
+    <div class="card-head"><span class="small-label">${esc(item.deck.name)}</span>${svg(item.deck.icon)}</div>
+    <p class="q">${esc(item.text)}</p>
+    <div class="card-foot"><b>${esc(who)}</b> answers first</div>`;
+
+  if (!seen.has(item.id)) { seen.add(item.id); persist(); }
+}
+
+let swapping = false;
+function go(dir) {
+  const np = view.pos + dir;
+  if (np < 0 || np > view.order.length || swapping) return;
+  const card = document.getElementById("card");
+  const done = () => { view.pos = np; paintCard(); };
+  if (reduceMotion()) { card.style.transform = ""; done(); return; }
+  swapping = true;
+  const from = card.style.transform || "none";
+  card.animate(
+    [{ transform: from, opacity: 1 }, { transform: `translateX(${-dir * 115}%) rotate(${-dir * 8}deg)`, opacity: 0 }],
+    { duration: 220, easing: "cubic-bezier(.4,0,.7,.4)" }
+  ).onfinish = () => {
+    card.style.transform = "";
+    done();
+    card.animate(
+      [{ transform: "translateY(14px) scale(.96)", opacity: 0.4 }, { transform: "none", opacity: 1 }],
+      { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" }
+    ).onfinish = () => { swapping = false; };
+  };
+}
+
+function bindSwipe(card) {
+  let x0 = null, dx = 0;
+  card.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || e.target.closest("button") || card.classList.contains("end") || swapping) return;
+    x0 = e.clientX; dx = 0;
+    card.setPointerCapture(e.pointerId);
+  });
+  card.addEventListener("pointermove", e => {
+    if (x0 === null) return;
+    dx = e.clientX - x0;
+    card.style.transform = `translateX(${dx}px) rotate(${dx / 20}deg)`;
+  });
+  const end = () => {
+    if (x0 === null) return;
+    x0 = null;
+    const dir = dx < -70 ? 1 : dx > 70 ? -1 : 0;
+    const blocked = (dir === -1 && view.pos === 0) || (dir === 1 && view.pos >= view.order.length);
+    if (dir && !blocked) { go(dir); return; }
+    const from = card.style.transform;
+    card.style.transform = "";
+    if (from && !reduceMotion()) card.animate([{ transform: from }, { transform: "none" }], { duration: 200, easing: "cubic-bezier(.2,.9,.3,1.2)" });
+  };
+  card.addEventListener("pointerup", end);
+  card.addEventListener("pointercancel", end);
+}
+
+function renderSaved() {
+  const items = [...saved].map(id => BY_ID[id]).filter(Boolean);
+  app.innerHTML = `
+    <div class="page">
+      <div class="topbar sticky">
+        <button class="icon-btn" data-act="home" aria-label="Back">${svg("back")}</button>
+        <div class="tb"><span class="tb-title">Saved questions</span><span class="tb-sub">${items.length}</span></div>
+        <span></span>
+      </div>
+      ${items.length
+        ? `<div class="group">${items.map(it => `
+            <div class="row plain-row">
+              <button class="row-main" data-act="open-saved" data-id="${it.id}">
+                <span class="small-label">${esc(it.deck.name)}</span>
+                <span class="row-title">${esc(it.text)}</span>
+              </button>
+              <button class="icon-btn red" data-act="unsave" data-id="${it.id}" aria-label="Remove from saved">${svg("heart", "filled")}</button>
+            </div>`).join("")}</div>`
+        : `<p class="empty">No saved questions yet. Tap the heart on a card to save it.</p>`}
+    </div>
+    ${items.length ? `<div class="bottom-bar"><button class="btn primary" data-act="play-saved">Play saved questions</button></div>` : ""}`;
+}
+
+app.addEventListener("click", e => {
+  const deckBtn = e.target.closest("[data-deck]");
+  if (deckBtn) { openDeck(deckBtn.dataset.deck); return; }
+  const b = e.target.closest("[data-act]");
+  if (!b) return;
+  const act = b.dataset.act;
+  if (act === "mix") openDeck("mix");
+  else if (act === "tonight") openDeck("mix", tonight().id);
+  else if (act === "saved") { view = { name: "saved" }; render(); window.scrollTo(0, 0); }
+  else if (act === "home") { view = { name: "home" }; render(); window.scrollTo(0, 0); }
+  else if (act === "next") go(1);
+  else if (act === "prev") go(-1);
+  else if (act === "reshuffle") {
+    view.order = shuffle(view.order.slice());
+    view.pos = 0;
+    view.first = Math.random() < 0.5 ? 0 : 1;
+    paintCard();
+  }
+  else if (act === "save") {
+    const id = view.order[view.pos];
+    if (!id) return;
+    saved.has(id) ? saved.delete(id) : saved.add(id);
+    persist();
+    paintCard();
+  }
+  else if (act === "unsave") { saved.delete(b.dataset.id); persist(); renderSaved(); }
+  else if (act === "open-saved") openDeck("saved", b.dataset.id);
+  else if (act === "play-saved") openDeck("saved");
+  else if (act === "reset-ask") {
+    document.getElementById("reset-area").innerHTML = `
+      <div class="row plain-row confirm">
+        <span class="row-main"><span class="row-title">Reset all progress?</span><span class="row-sub">Every card will show as unasked again.</span></span>
+        <button class="pill red" data-act="reset-yes">Reset</button>
+        <button class="pill" data-act="reset-no">Cancel</button>
+      </div>`;
+  }
+  else if (act === "reset-yes") { seen = new Set(); persist(); renderHome(); }
+  else if (act === "reset-no") renderHome();
+});
+
+document.addEventListener("keydown", e => {
+  if (view.name !== "deck" || e.target.closest("input")) return;
+  if (e.key === "ArrowRight") go(1);
+  else if (e.key === "ArrowLeft") go(-1);
+  else if (e.key === "Escape") { view = { name: "home" }; render(); }
+});
+
+render();
+</script>
+</body>
+</html>
