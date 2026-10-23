@@ -990,7 +990,7 @@ function flyOut(el, dir, vx, vy, fromButton) {
     duration: dur,
     easing: fromButton ? "cubic-bezier(.5,0,.7,.6)" : "cubic-bezier(.25,.4,.5,1)"
   });
-  a.onfinish = () => el.remove();
+  removeAfter(el, a, dur);
 }
 
 function advance(dir = -1, vx = 0, vy = 0, fromButton = true) {
@@ -1002,21 +1002,28 @@ function advance(dir = -1, vx = 0, vy = 0, fromButton = true) {
   syncUI();
 }
 
-function back() {
+// Where the previous card waits, just off the left edge of the screen.
+const offLeft = () => -(window.innerWidth / 2 + deck.pile.clientWidth);
+const prevParked = () => tf(offLeft(), -30, -16, 1);
+
+// Bring the previous card back in from the left. A swipe passes in the card it already pulled in.
+function back(el = null, easing = EASE_BOUNCE, duration = 640) {
   if (view.pos <= 0) return;
   view.pos--;
-  const el = makeCard(view.pos);
-  const w = deck.pile.clientWidth;
-  el.style.transform = tf(-(window.innerWidth / 2 + w), -30, -16, 1);
-  deck.pile.appendChild(el);
+  if (!el) {
+    el = makeCard(view.pos);
+    el.style.transform = prevParked();
+    deck.pile.appendChild(el);
+  }
+  el._pos = null;
   deck.els.unshift(el);
   while (deck.els.length > STACK) {
     const old = deck.els.pop();
     settle(old);
     if (reduceMotion()) old.remove();
-    else old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200 }).onfinish = () => old.remove();
+    else removeAfter(old, old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200 }), 200);
   }
-  restack(EASE_BOUNCE, 640);
+  restack(easing, duration);
   syncUI();
 }
 
@@ -1038,15 +1045,51 @@ function syncUI() {
   if (!atEnd && !seen.has(item.id)) { seen.add(item.id); persist(); }
 }
 
+// Thumb left drags the top card away to reveal the next one.
+// Thumb right pulls the previous card back in from the left, and the stack sinks to make room.
 function paintDrag(d) {
   const w = deck.pile.clientWidth;
-  // Cards pivot the way a real one does: grab the top half and it tips one way, the bottom half the other.
-  const r = d.tilt * (d.dx / w) * 16;
-  const y = d.dy * 0.4;
-  d.el._pos = { x: d.dx, y, r };
-  d.el.style.transform = tf(d.dx, y, r, 1);
-  const lift = Math.min(1, Math.abs(d.dx) / (w * 0.5));
-  deck.els.slice(1).forEach((el, i) => { el.style.transform = depthTf(i + 1 - lift); });
+  const atEnd = view.pos >= view.order.length;
+  if (d.dx < 0 || (d.dx > 0 && view.pos === 0)) {
+    // Nothing to bring back on the first card, and nothing after the end card, so those drags just stretch a little.
+    const x = d.dx < 0 && !atEnd ? d.dx : d.dx * 0.22;
+    // Cards pivot the way a real one does: grab the top half and it tips one way, the bottom half the other.
+    const r = d.tilt * (x / w) * 16;
+    const y = d.dx < 0 ? d.dy * 0.4 : 0;
+    d.el._pos = { x, y, r };
+    d.el.style.transform = tf(x, y, r, 1);
+    const lift = d.dx < 0 && !atEnd ? Math.min(1, -d.dx / (w * 0.5)) : 0;
+    deck.els.slice(1).forEach((el, i) => { el.style.transform = depthTf(i + 1 - lift); });
+    if (d.prev) d.prev.style.transform = prevParked();
+    return;
+  }
+  if (!d.prev) {
+    d.prev = makeCard(view.pos - 1);
+    d.prev.style.zIndex = 15;
+    d.prev.inert = true;
+    deck.pile.appendChild(d.prev);
+  }
+  const p = Math.min(1, d.dx / (w * 0.85));
+  d.prevProgress = p;
+  d.prev.style.transform = tf(offLeft() * (1 - p), -30 * (1 - p), -16 * (1 - p), 1);
+  d.el._pos = null;
+  deck.els.forEach((el, i) => { el.style.transform = depthTf(i + p); });
+}
+
+function dropPrev(el) {
+  const from = el.style.transform;
+  const to = prevParked();
+  el.style.transform = to;
+  if (reduceMotion()) { el.remove(); return; }
+  removeAfter(el, el.animate([{ transform: from }, { transform: to }], { duration: 320, easing: "cubic-bezier(.3,.6,.4,1)" }), 320);
+}
+
+// Remove a card once its exit animation ends. The timer backs this up in case the phone
+// pauses rendering mid-animation, so finished cards never pile up off-screen.
+function removeAfter(el, anim, duration) {
+  const done = () => el.remove();
+  anim.onfinish = done;
+  setTimeout(done, duration + 250);
 }
 
 function bindSwipe() {
@@ -1054,7 +1097,7 @@ function bindSwipe() {
   let frame = 0;
   pile.addEventListener("pointerdown", e => {
     const top = deck.els[0];
-    if (deck.drag || !top || e.button !== 0 || !top.contains(e.target) || e.target.closest("button") || top.classList.contains("end")) return;
+    if (deck.drag || !top || e.button !== 0 || !top.contains(e.target) || e.target.closest("button")) return;
     deck.els.forEach(settle);
     const rect = top.getBoundingClientRect();
     deck.drag = {
@@ -1087,10 +1130,15 @@ function bindSwipe() {
     const vx = (last.x - first.x) / dt;
     const vy = (last.y - first.y) / dt;
     const w = pile.clientWidth;
-    const flick = Math.abs(vx) > 0.45 && Math.sign(vx) === Math.sign(d.dx) && Math.abs(d.dx) > 24;
-    if (e.type !== "pointercancel" && (Math.abs(d.dx) > w * 0.32 || flick)) {
-      advance(Math.sign(d.dx), vx, vy, false);
+    const cancelled = e.type === "pointercancel";
+    const atEnd = view.pos >= view.order.length;
+    if (d.dx < 0 && !atEnd && !cancelled && (-d.dx > w * 0.32 || (vx < -0.45 && d.dx < -24))) {
+      if (d.prev) d.prev.remove();
+      advance(-1, vx, vy, false);
+    } else if (d.prev && d.dx > 0 && !cancelled && (d.prevProgress > 0.35 || (vx > 0.45 && d.dx > 24))) {
+      back(d.prev, EASE_SETTLE, 460);
     } else {
+      if (d.prev) dropPrev(d.prev);
       d.el._pos = null;
       restack(EASE_BOUNCE, 620);
     }
