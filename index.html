@@ -53,6 +53,7 @@ body { margin: 0; }
   color-scheme: dark;
 }
 
+*, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
   background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 17px; line-height: 1.4;
@@ -175,6 +176,29 @@ button.row:active, .row-btn:active { background: var(--press); }
 .ctl.heart.on { color: var(--heart); }
 .ctl.next { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--btn); color: var(--btn-ink); border: 0; font-size: 17px; font-weight: 600; }
 .ctl.next:active { opacity: 0.85; }
+
+/* ---------- Casual / Serious toggle ---------- */
+.mode-wrap { display: flex; flex-direction: column; gap: 10px; }
+.mode {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; padding: 4px; border-radius: 16px;
+  background: var(--card); border: 1px solid var(--line);
+}
+.mode-thumb {
+  position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(50% - 4px); border-radius: 12px;
+  background: var(--press); transition: transform 0.28s cubic-bezier(.3, .9, .3, 1), background-color 0.28s ease;
+}
+.mode[data-mode="serious"] .mode-thumb { transform: translateX(100%); background: var(--btn); }
+.mode button { position: relative; min-height: 48px; border-radius: 12px; font-size: 16px; font-weight: 600; color: var(--muted); text-align: center; transition: color 0.28s ease; }
+.mode button[aria-checked="true"] { color: var(--ink); }
+.mode[data-mode="serious"] button[aria-checked="true"] { color: var(--btn-ink); }
+.mode-note { margin: 0 4px; font-size: 14px; color: var(--muted); }
+
+/* Serious cards are printed in reverse so the mode is obvious at a glance. */
+.today.serious, .card.serious { background: var(--btn); color: var(--btn-ink); }
+.today.serious:active { background: var(--btn); opacity: 0.92; }
+.today.serious .small-label, .today.serious .today-foot,
+.card.serious .card-head, .card.serious .card-foot { color: color-mix(in srgb, var(--btn-ink) 62%, transparent); }
+.today.serious .today-foot .open, .card.serious .card-foot b { color: var(--btn-ink); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
@@ -479,6 +503,110 @@ const DECKS = [
       "Would you rather dance in the rain or watch the stars all night?",
       "Would you rather be stuck in a lift with your boss or your ex?"
     ]
+  },
+
+  // Serious mode. Open-ended inner-world questions (Gottman's love maps), attachment and repair
+  // (Sue Johnson's Hold Me Tight conversations) and shared meaning (Gottman's rituals, roles, goals).
+  // Both people answer every card, because closeness grows when disclosure is reciprocal (Aron et al.).
+  {
+    id: "under", mode: "serious", name: "Underneath", icon: "under", depth: 3,
+    q: [
+      "What's something you've never fully said out loud, even to yourself?",
+      "What part of your childhood still shows up in how you act today?",
+      "When do you feel ashamed, and where do you think that feeling comes from?",
+      "What's a fear you carry that you rarely talk about?",
+      "Who did you have to be growing up to keep the peace or to be loved?",
+      "What do you wish people understood about you without you having to explain it?",
+      "What's a moment that changed how you see yourself?",
+      "What's the kindest thing anyone has done for you, and why did it mean so much?",
+      "When do you feel like you're not enough?",
+      "What's a loss you don't think you've fully grieved?",
+      "What do you criticise yourself for most, and is it fair?",
+      "Which of your parents are you most like, and how do you feel about that?",
+      "What's a dream you gave up on, and do you still think about it?",
+      "What makes you feel truly seen by another person?",
+      "When did you last cry, and what was underneath it?",
+      "What do you need to hear more often but find hard to ask for?",
+      "What part of yourself are you still learning to accept?",
+      "What would the people closest to you be surprised to learn you struggle with?",
+      "What are you proud of that you rarely mention?",
+      "If you could heal one thing from your past, what would it be?"
+    ]
+  },
+  {
+    id: "safe", mode: "serious", name: "Feeling Safe", icon: "safe", depth: 3,
+    q: [
+      "When do you feel most secure in our relationship?",
+      "What's something small I do that makes you feel cared for?",
+      "When you're hurting, what do you need from me first: words, space, or closeness?",
+      "Was there a time you reached for me and I wasn't there the way you needed?",
+      "When you feel distant from me, what's going on inside you?",
+      "What's a sensitive spot from your past that I might accidentally press on?",
+      "How can I tell when you need reassurance, even if you don't ask for it?",
+      "Do you ever hold back from telling me how you feel? What makes it hard?",
+      "What's one way I could show love that would mean more than I realise?",
+      "When do you feel alone, even when we're together?",
+      "What does feeling chosen by me look like on an ordinary day?",
+      "How did your family show love, and how is that different from what you need?",
+      "What's a fear about us that you haven't said out loud?",
+      "When I'm stressed or quiet, what story do you tell yourself about it?",
+      "What's something about you that you wish I was more curious about?",
+      "How do you like me to show that I'm proud of you?",
+      "When did you feel completely understood by me?",
+      "What helps you feel close to me again after we've been apart or busy?",
+      "What do you need more of from me right now that you've been hesitant to ask for?",
+      "What makes it easy or hard for you to depend on someone?"
+    ]
+  },
+  {
+    id: "hard", mode: "serious", name: "Hard Things", icon: "hard", depth: 3,
+    q: [
+      "When we argue, what are you usually feeling underneath the anger?",
+      "What's a pattern in our arguments that you'd like us to break?",
+      "Is there a hurt between us that still feels unresolved for you?",
+      "What do you need from me to feel okay again after a fight?",
+      "How can you tell when an apology is real?",
+      "What's something you've forgiven me for that I might not know about?",
+      "Is there an argument we keep having that has a bigger hope or fear underneath it?",
+      "What topic do you avoid bringing up with me, and why?",
+      "What does trust mean to you, and what would break it?",
+      "When you go quiet or shut down, what's happening inside you?",
+      "What's one thing I do in conflict that makes it harder for you to stay open?",
+      "What would you want me to do if I ever saw you pulling away?",
+      "How were arguments handled in your home growing up, and how has that shaped you?",
+      "What have you been carrying alone that you'd like us to carry together?",
+      "Is there anything you worry would change how I see you if I knew it?",
+      "What's a boundary that matters to you that you haven't said clearly?",
+      "When have we handled something hard really well, and what made it work?",
+      "What should we do if one of us starts to feel unhappy in the relationship?",
+      "Is there something you need to apologise for that you haven't yet?",
+      "How can we take a break during a fight without either of us feeling abandoned?"
+    ]
+  },
+  {
+    id: "life", mode: "serious", name: "Our Life", icon: "life", depth: 3,
+    q: [
+      "What does a meaningful life look like to you, and where do I fit in it?",
+      "What rituals do you want us to have, daily, weekly, or yearly?",
+      "What do you want our home to stand for?",
+      "What does being a good partner look like day to day, not just in big moments?",
+      "How do you honestly feel about having children someday?",
+      "How do you want us to handle money as a team?",
+      "What role do you want our families to play in our life?",
+      "What's a goal you want us to work toward together in the next five years?",
+      "If we hit a really hard season, like illness or losing a job, how would you want us to face it?",
+      "What does commitment mean to you?",
+      "What should we never stop doing, no matter how busy life gets?",
+      "How do you want us to share the responsibilities at home so it feels fair?",
+      "What do you want our life to look like when we're seventy?",
+      "What values do you hope people can see in us as a couple?",
+      "Is there a dream of yours you'd want me to protect, even when it's inconvenient?",
+      "What's something you want to build or create with me?",
+      "How do you want us to mark our milestones?",
+      "What place should faith, purpose, or something bigger than us have in our life?",
+      "Where do you think we're different, and how do you want us to handle that?",
+      "What do we need to talk through before we take our next big step?"
+    ]
   }
 ];
 
@@ -486,7 +614,13 @@ const DEPTH = { 1: "Light", 2: "Warm", 3: "Deep" };
 const SUB = {
   past: "Childhood and memories", present: "Life at the moment", future: "Plans and dreams",
   us: "Your relationship", deep: "Life's big questions", values: "Beliefs and priorities",
-  closer: "Romance and attraction", whatif: "Hypotheticals", fun: "Light and silly", rather: "Pick one, then explain"
+  closer: "Romance and attraction", whatif: "Hypotheticals", fun: "Light and silly", rather: "Pick one, then explain",
+  under: "Fears, history and the inner you", safe: "Needs, comfort and reassurance",
+  hard: "Conflict, hurt and making up", life: "Plans, roles and what we're building"
+};
+const MODE_NOTE = {
+  casual: "Light to medium questions. Good for any night.",
+  serious: "Deeper, more personal questions. You both answer every card. Take your time, and skip any card you're not ready for."
 };
 
 const ICON = {
@@ -500,6 +634,10 @@ const ICON = {
   whatif: '<path d="M7 18.5h10.5a4 4 0 0 0 .3-8 6 6 0 0 0-11.6 1.3A3.4 3.4 0 0 0 7 18.5z"/>',
   fun: '<circle cx="12" cy="12" r="9"/><path d="M8 14.5s1.5 2 4 2 4-2 4-2M9 9.5v1M15 9.5v1"/>',
   rather: '<path d="M12 21v-7.5M12 13.5 6.5 6M12 13.5 17.5 6M6 5.5h4M6 5.5v4M18 5.5h-4M18 5.5v4"/>',
+  under: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12.5l9 5 9-5M3 17l9 5 9-5"/>',
+  safe: '<path d="M12 3l7 3v5.5c0 4.3-2.9 7.8-7 9.5-4.1-1.7-7-5.2-7-9.5V6z"/>',
+  hard: '<path d="M7 15h10.5a4 4 0 0 0 .3-8 6 6 0 0 0-11.6 1.3A3.4 3.4 0 0 0 7 15z"/><path d="M12.5 15l-2 3.5h3l-2 3.5"/>',
+  life: '<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-5h4v5"/>',
   back: '<path d="M15 5l-7 7 7 7"/>',
   chev: '<path d="M9 5l7 7-7 7"/>',
   left: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
@@ -527,7 +665,10 @@ let saved = new Set(store.get("saved", []).filter(id => BY_ID[id]));
 let seen = new Set(store.get("seen", []).filter(id => BY_ID[id]));
 let names = store.get("names", ["Luke", "Mieke"]);
 if (names[1] === "Her") names[1] = "Mieke";
+let mode = store.get("mode", "casual") === "serious" ? "serious" : "casual";
 const persist = () => { store.set("saved", [...saved]); store.set("seen", [...seen]); };
+const modeOf = d => d.mode || "casual";
+const pool = m => ALL.filter(x => modeOf(x.deck) === m);
 
 const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -542,11 +683,12 @@ function freshOrder(ids) {
 // Picked from the date, so both phones show the same question on the same day.
 function tonight() {
   const d = new Date();
-  let x = (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) ^ 0x9e3779b9;
+  let x = (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) ^ (mode === "serious" ? 0x5bd1e995 : 0x9e3779b9);
   x = Math.imul(x ^ (x >>> 16), 0x85ebca6b);
   x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35);
   x ^= x >>> 16;
-  return ALL[(x >>> 0) % ALL.length];
+  const list = pool(mode);
+  return list[(x >>> 0) % list.length];
 }
 
 const app = document.getElementById("app");
@@ -558,8 +700,35 @@ function render() {
   else renderHome();
 }
 
-function renderHome() {
+function todayCard() {
   const t = tonight();
+  return `
+    <button class="today${mode === "serious" ? " serious" : ""}" data-act="tonight">
+      <span class="small-label">${mode === "serious" ? "Today's serious question" : "Today's question"}</span>
+      <span class="today-q">${esc(t.text)}</span>
+      <span class="today-foot"><span>You both get the same one today</span><span class="open">Open ${svg("chev")}</span></span>
+    </button>`;
+}
+
+function deckList() {
+  return `
+    <h2 class="small-label group-label">${mode === "serious" ? "Serious decks" : "Decks"}</h2>
+    <div class="group">${DECKS.filter(d => modeOf(d) === mode).map(deckRow).join("")}</div>`;
+}
+
+function setMode(m) {
+  if (m === mode) return;
+  mode = m;
+  store.set("mode", mode);
+  const toggle = document.getElementById("mode");
+  toggle.dataset.mode = mode;
+  toggle.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.mode === mode)));
+  document.getElementById("mode-note").textContent = MODE_NOTE[mode];
+  document.getElementById("today-slot").innerHTML = todayCard();
+  document.getElementById("deck-slot").innerHTML = deckList();
+}
+
+function renderHome() {
   app.innerHTML = `
     <div class="page">
       <header class="home-head">
@@ -567,16 +736,18 @@ function renderHome() {
         <p>${esc(names[0])} &amp; ${esc(names[1])}</p>
       </header>
 
-      <button class="today" data-act="tonight">
-        <span class="small-label">Today's question</span>
-        <span class="today-q">${esc(t.text)}</span>
-        <span class="today-foot"><span>You both get the same one today</span><span class="open">Open ${svg("chev")}</span></span>
-      </button>
+      <div id="today-slot">${todayCard()}</div>
 
-      <section>
-        <h2 class="small-label group-label">Decks</h2>
-        <div class="group">${DECKS.map(deckRow).join("")}</div>
-      </section>
+      <div class="mode-wrap">
+        <div class="mode" id="mode" data-mode="${mode}" role="radiogroup" aria-label="Question type">
+          <span class="mode-thumb" aria-hidden="true"></span>
+          <button role="radio" aria-checked="${mode === "casual"}" data-act="mode" data-mode="casual">Casual</button>
+          <button role="radio" aria-checked="${mode === "serious"}" data-act="mode" data-mode="serious">Serious</button>
+        </div>
+        <p class="mode-note" id="mode-note">${MODE_NOTE[mode]}</p>
+      </div>
+
+      <section id="deck-slot">${deckList()}</section>
 
       <div class="group">
         <button class="row" data-act="saved">${svg("heart")}<span class="row-main"><span class="row-title">Saved questions</span></span><span class="row-meta">${saved.size}</span>${svg("chev", "chev")}</button>
@@ -616,7 +787,7 @@ function deckRow(d) {
 
 function openDeck(kind, startId) {
   let ids, title;
-  if (kind === "mix") { ids = ALL.map(x => x.id); title = "All decks"; }
+  if (kind === "mix") { ids = pool(mode).map(x => x.id); title = mode === "serious" ? "All serious decks" : "All decks"; }
   else if (kind === "saved") { ids = [...saved]; title = "Saved questions"; }
   else { const d = DECKS.find(x => x.id === kind); ids = d.q.map((_, i) => d.id + ":" + i); title = d.name; }
   let order = freshOrder(ids);
@@ -680,11 +851,15 @@ function paintCard() {
   }
 
   const who = names[(pos + view.first) % 2];
-  card.className = "card";
+  const other = names[(pos + view.first + 1) % 2];
+  const serious = modeOf(item.deck) === "serious";
+  card.className = serious ? "card serious" : "card";
   card.innerHTML = `
     <div class="card-head"><span class="small-label">${esc(item.deck.name)}</span>${svg(item.deck.icon)}</div>
     <p class="q">${esc(item.text)}</p>
-    <div class="card-foot"><b>${esc(who)}</b> answers first</div>`;
+    <div class="card-foot">${serious
+      ? `<b>${esc(who)}</b> goes first, then <b>${esc(other)}</b>`
+      : `<b>${esc(who)}</b> answers first`}</div>`;
 
   if (!seen.has(item.id)) { seen.add(item.id); persist(); }
 }
@@ -766,7 +941,8 @@ app.addEventListener("click", e => {
   const b = e.target.closest("[data-act]");
   if (!b) return;
   const act = b.dataset.act;
-  if (act === "mix") openDeck("mix");
+  if (act === "mode") setMode(b.dataset.mode);
+  else if (act === "mix") openDeck("mix");
   else if (act === "tonight") openDeck("mix", tonight().id);
   else if (act === "saved") { view = { name: "saved" }; render(); window.scrollTo(0, 0); }
   else if (act === "home") { view = { name: "home" }; render(); window.scrollTo(0, 0); }
