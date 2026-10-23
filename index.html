@@ -174,13 +174,8 @@ button.row:active, .row-btn:active { background: var(--press); }
 .ctl.next:active { opacity: 0.85; }
 
 /* ---------- Zoom between a pack and its deck ---------- */
-.ghost { position: fixed !important; inset: auto; z-index: 60; margin: 0; overflow: hidden; pointer-events: none; transform: none; }
-.ghost-face {
-  position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; justify-content: space-between;
-  padding: 12px 12px 13px; background: inherit; border-radius: inherit; text-align: left;
-}
-.ghost.serious .pack-top, .ghost.serious .pack-sub { color: color-mix(in srgb, var(--btn-ink) 60%, transparent); }
-.ghost.serious .pack-bar { background: color-mix(in srgb, var(--btn-ink) 22%, transparent); }
+.morph { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+.morph-shell { position: fixed !important; inset: auto; padding: 0; transform-origin: 0 0; will-change: transform; }
 .snap { position: fixed; inset: 0; z-index: 40; pointer-events: none; background: var(--bg); overflow: hidden; }
 
 /* ---------- Deck packs on the home screen ---------- */
@@ -1250,15 +1245,227 @@ function goHome() {
 }
 
 // ---------- Zooming into a deck and back out ----------
-// Tapping a pack lifts its top card out, the home screen falls away behind it, and the card grows
-// into the first card of the deck. Going back runs the same move in reverse. The card changes its
-// real size rather than being scaled, so the text is drawn sharp on every frame.
-const ZOOM_MS = 540;
-const ZOOM_EASE = "cubic-bezier(.22,.8,.24,1)";
+// Tapping a pack morphs it into the first card of the deck. The card grows out of the pack as an empty
+// shell, the pack's icon and name glide up into their places in the card's header, the pack's small
+// details ride outward and fade, and the question fades up once the card is nearly full size.
+// Going back plays the same morph in reverse.
+// Every moving piece is a copy pinned to its own rectangle and animated with transform and opacity only,
+// from keyframes worked out here in advance. Nothing is laid out again mid-animation, so the browser can
+// run the whole thing on the compositor.
+const ZOOM_MS = 560;
+const STEPS = 40;
 let homeScroll = 0;
 let zooming = false;
 
-const box = (r, radius) => ({ left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px", borderRadius: radius + "px" });
+function bezier(x1, y1, x2, y2) {
+  const at = (a, b, t) => 3 * a * (1 - t) * (1 - t) * t + 3 * b * (1 - t) * t * t + t * t * t;
+  return x => {
+    let lo = 0, hi = 1, t = x;
+    for (let i = 0; i < 24; i++) {
+      const v = at(x1, x2, t);
+      if (Math.abs(v - x) < 1e-5) break;
+      if (v < x) lo = t; else hi = t;
+      t = (lo + hi) / 2;
+    }
+    return at(y1, y2, t);
+  };
+}
+const EASE_CARD = bezier(0.22, 0.8, 0.2, 1);
+// The icon and name get to their spots early, so they read as moving out of the way for the card.
+const EASE_FAST = bezier(0.15, 0.95, 0.12, 1);
+
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const ramp = (p, a, b) => clamp01((p - a) / (b - a));
+const lerp = (a, b, p) => a + (b - a) * p;
+const lerpRect = (a, b, p) => ({ left: lerp(a.left, b.left, p), top: lerp(a.top, b.top, p), width: lerp(a.width, b.width, p), height: lerp(a.height, b.height, p) });
+const rectOf = el => { const r = el.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; };
+const pin = (el, r) => Object.assign(el.style, { position: "fixed", left: r.left + "px", top: r.top + "px", width: r.width + "px", height: r.height + "px", margin: "0" });
+
+// Copy an element out of the page with its look frozen in, so it can travel on its own.
+function lift(el) {
+  const rect = rectOf(el);
+  const copy = el.cloneNode(true);
+  const from = [el, ...el.querySelectorAll("*")];
+  const to = [copy, ...copy.querySelectorAll("*")];
+  from.forEach((s, i) => {
+    const cs = getComputedStyle(s);
+    const d = to[i].style;
+    ["color", "fontFamily", "fontSize", "fontWeight", "letterSpacing", "textTransform", "lineHeight",
+      "display", "justifyContent", "alignItems", "gap", "backgroundColor", "borderRadius", "stroke", "strokeWidth", "whiteSpace"]
+      .forEach(k => { d[k] = cs[k]; });
+  });
+  pin(copy, rect);
+  copy.style.transformOrigin = "0 0";
+  copy.style.willChange = "transform, opacity";
+  return { rect, copy };
+}
+
+const packParts = pack => {
+  const f = pack.querySelector(".front");
+  return { box: f, icon: f.querySelector(".pack-mark .ic"), name: f.querySelector(".pack-name"), extras: [".pack-top", ".pack-sub", ".pack-bar"].map(s => f.querySelector(s)) };
+};
+const cardParts = card => ({
+  box: card, icon: card.querySelector(".card-head .ic"), name: card.querySelector(".card-head .small-label"),
+  extras: [card.querySelector(".q"), card.querySelector(".card-foot")]
+});
+
+// Measure one side of the morph and copy its pieces out while they are still on screen.
+function capture(parts) {
+  return {
+    box: rectOf(parts.box), cls: parts.box.className,
+    icon: lift(parts.icon), name: lift(parts.name),
+    extras: parts.extras.filter(Boolean).map(lift)
+  };
+}
+
+// The card shell: stretched from the pack's rectangle to the card's.
+function grow(el, home, a, b, dir) {
+  const frames = [];
+  for (let i = 0; i <= STEPS; i++) {
+    const t = i / STEPS;
+    const r = lerpRect(a, b, dir > 0 ? EASE_CARD(t) : 1 - EASE_CARD(t));
+    frames.push({ transform: `translate(${(r.left - home.left).toFixed(2)}px, ${(r.top - home.top).toFixed(2)}px) scale(${(r.width / home.width).toFixed(4)}, ${(r.height / home.height).toFixed(4)})` });
+  }
+  return el.animate(frames, { duration: ZOOM_MS, easing: "linear", fill: "forwards" });
+}
+
+// A piece that rides inside the growing card. Its spot is measured as a fraction of the card, so it can
+// never drift outside it: it starts where it sat in the pack (a, within P) and glides to where it sits in
+// the card (b, within C). `glide` sets how quickly it gets there relative to the card's own growth.
+function ride(el, home, a, b, P, C, dir, glide, opacityAt) {
+  const fa = { x: (a.left - P.left) / P.width, y: (a.top - P.top) / P.height };
+  const fb = { x: (b.left - C.left) / C.width, y: (b.top - C.top) / C.height };
+  const frames = [];
+  for (let i = 0; i <= STEPS; i++) {
+    const t = i / STEPS;
+    const pc = dir > 0 ? EASE_CARD(t) : 1 - EASE_CARD(t);
+    const pg = dir > 0 ? glide(t) : 1 - glide(t);
+    const card = lerpRect(P, C, pc);
+    const left = card.left + lerp(fa.x, fb.x, pg) * card.width;
+    const top = card.top + lerp(fa.y, fb.y, pg) * card.height;
+    const s = lerp(a.width, b.width, pg) / home.width;
+    frames.push({
+      transform: `translate(${(left - home.left).toFixed(2)}px, ${(top - home.top).toFixed(2)}px) scale(${s.toFixed(4)})`,
+      opacity: opacityAt(pc, pg).toFixed(3)
+    });
+  }
+  return el.animate(frames, { duration: ZOOM_MS, easing: "linear", fill: "forwards" });
+}
+
+// Morph between a captured pack (P) and a captured card (C). dir 1 goes into the deck, -1 back out.
+function morph(P, C, dir, done) {
+  const layer = document.createElement("div");
+  layer.className = "morph";
+  const pr = P.box, cr = C.box;
+  const anims = [];
+  const into = (r, from, to) => ({
+    left: to.left + (r.left - from.left) * to.width / from.width,
+    top: to.top + (r.top - from.top) * to.height / from.height,
+    width: r.width, height: r.height
+  });
+  const add = el => { layer.appendChild(el); return el; };
+
+  // The card itself: an empty shell, so nothing inside it reflows while it grows.
+  const shell = document.createElement("div");
+  shell.className = C.cls + " morph-shell";
+  pin(shell, cr);
+  anims.push(grow(add(shell), cr, pr, cr, dir));
+
+  // The pack's count, subtitle and progress bar stay put on the card as it grows, and fade quickly.
+  P.extras.forEach(x => anims.push(ride(add(x.copy), x.rect, x.rect, into(x.rect, pr, cr), pr, cr, dir, EASE_CARD, pc => 1 - ramp(pc, 0, 0.22))));
+
+  // The icon slides from the middle of the pack up into the card's top-right corner, and the name from
+  // the bottom up into the header. Each cross-fades from the pack's style to the card's on the way.
+  [[P.icon, C.icon, 0.06, 0.4, 0.12, 0.46], [P.name, C.name, 0.04, 0.36, 0.16, 0.54]].forEach(([from, to, o1, o2, i1, i2]) => {
+    anims.push(ride(add(from.copy), from.rect, from.rect, to.rect, pr, cr, dir, EASE_FAST, (pc, pg) => 1 - ramp(pg, o1, o2)));
+    anims.push(ride(add(to.copy), to.rect, from.rect, to.rect, pr, cr, dir, EASE_FAST, (pc, pg) => ramp(pg, i1, i2)));
+  });
+
+  // The question and footer are already laid out at full size; they fade up as the card arrives.
+  C.extras.forEach(x => anims.push(ride(add(x.copy), x.rect, into(x.rect, cr, pr), x.rect, pr, cr, dir, EASE_CARD, pc => ramp(pc, 0.55, 0.95))));
+
+  document.body.appendChild(layer);
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    layer.remove();
+    done();
+  };
+  anims[0].onfinish = finish;
+  setTimeout(finish, ZOOM_MS + 500);
+}
+
+function openDeckFromPack(pack) {
+  const id = pack.dataset.deck;
+  if (zooming) return;
+  if (reduceMotion() || !pack.querySelector(".front")) { openDeck(id); return; }
+  zooming = true;
+  const P = capture(packParts(pack));
+  const snap = snapshot(P.box.left + P.box.width / 2, P.box.top + P.box.height / 2);
+  snap.querySelector(`[data-deck="${id}"] .front`).style.visibility = "hidden";
+
+  deck.quietDeal = true;
+  openDeck(id);
+  document.body.appendChild(snap);
+  const C = capture(cardParts(deck.els[0]));
+  deck.els.forEach(el => { el.style.opacity = "0"; });
+
+  // The home screen pushes forward and fades, like moving into the pack.
+  snap.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(1.08)" }],
+    { duration: 420, easing: "cubic-bezier(.3,.6,.4,1)", fill: "forwards" });
+  app.querySelectorAll(".topbar, .controls").forEach(el => el.animate(
+    [{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }],
+    { duration: 320, delay: 280, easing: "ease-out", fill: "backwards" }
+  ));
+
+  morph(P, C, 1, () => {
+    deck.els.forEach(el => { el.style.opacity = ""; });
+    snap.remove();
+    // The cards underneath slide out from beneath the one that just landed.
+    deck.els.slice(1).forEach((el, i) => el.animate([{ transform: "none" }, { transform: depthTf(i + 1) }], { duration: 420, easing: EASE_SETTLE }));
+    zooming = false;
+  });
+}
+
+function closeDeck() {
+  if (zooming) return;
+  const kind = view.kind;
+  const top = deck.els[0];
+  const d = DECKS.find(x => x.id === kind);
+  if (reduceMotion() || !top || top.classList.contains("end") || !d || modeOf(d) !== mode) { goHome(); return; }
+  zooming = true;
+  const C = capture(cardParts(top));
+  const chrome = snapshot(window.innerWidth / 2, window.innerHeight / 2);
+  chrome.querySelectorAll(".card").forEach(el => el.remove());
+  goHome();
+
+  const pack = app.querySelector(`[data-deck="${kind}"]`);
+  const front = pack && pack.querySelector(".front");
+  const fr = front && front.getBoundingClientRect();
+  const page = app.querySelector(".page");
+  if (!fr || fr.bottom < 0 || fr.top > window.innerHeight) {
+    page.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: "ease-out" });
+    zooming = false;
+    return;
+  }
+  const P = capture(packParts(pack));
+  front.style.visibility = "hidden";
+
+  // The deck's buttons fade away while the home screen settles back in around the pack.
+  document.body.appendChild(chrome);
+  chrome.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: "ease-out", fill: "forwards" });
+  const pg = page.getBoundingClientRect();
+  page.style.transformOrigin = `${fr.left + fr.width / 2 - pg.left}px ${fr.top + fr.height / 2 - pg.top}px`;
+  page.animate([{ opacity: 0, transform: "scale(1.08)" }, { opacity: 1, transform: "none" }], { duration: 460, easing: "cubic-bezier(.2,.7,.3,1)" });
+  app.querySelectorAll(".bottom-bar").forEach(el => el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 160, fill: "backwards" }));
+
+  morph(P, C, -1, () => {
+    front.style.visibility = "";
+    chrome.remove();
+    zooming = false;
+  });
+}
 
 // A frozen copy of the current screen, so it can fall away while the real screen changes underneath.
 function snapshot(originX, originY) {
@@ -1271,103 +1478,6 @@ function snapshot(originX, originY) {
   snap.querySelectorAll("[id]").forEach(el => el.removeAttribute("id"));
   snap.style.transformOrigin = `${originX}px ${originY}px`;
   return snap;
-}
-
-// A card-sized stand-in that flies between the pack and the deck, carrying the pack's label on top.
-function makeGhost(card, rect, radius, front) {
-  const ghost = card.cloneNode(true);
-  ghost.removeAttribute("style");
-  ghost.classList.add("ghost");
-  Object.assign(ghost.style, box(rect, radius));
-  const face = document.createElement("div");
-  face.className = "ghost-face";
-  face.innerHTML = front.innerHTML;
-  ghost.appendChild(face);
-  document.body.appendChild(ghost);
-  return { ghost, face };
-}
-
-function openDeckFromPack(pack) {
-  const id = pack.dataset.deck;
-  const front = pack.querySelector(".front");
-  if (zooming) return;
-  if (reduceMotion() || !front) { openDeck(id); return; }
-  zooming = true;
-  const from = front.getBoundingClientRect();
-  const snap = snapshot(from.left + from.width / 2, from.top + from.height / 2);
-  snap.querySelector(`[data-deck="${id}"] .front`).style.visibility = "hidden";
-
-  deck.quietDeal = true;
-  openDeck(id);
-  document.body.appendChild(snap);
-
-  const top = deck.els[0];
-  const to = top.getBoundingClientRect();
-  deck.els.forEach(el => { el.style.opacity = "0"; });
-  const { ghost, face } = makeGhost(top, from, 12, front);
-
-  snap.animate([{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(1.08)" }],
-    { duration: 420, easing: "cubic-bezier(.3,.6,.4,1)", fill: "forwards" });
-  const flight = ghost.animate([box(from, 12), box(to, 20)], { duration: ZOOM_MS, easing: ZOOM_EASE, fill: "forwards" });
-  face.animate([{ opacity: 1 }, { opacity: 1, offset: 0.3 }, { opacity: 0, offset: 0.7 }, { opacity: 0 }], { duration: ZOOM_MS, fill: "forwards" });
-  app.querySelectorAll(".topbar, .controls").forEach(el => el.animate(
-    [{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }],
-    { duration: 320, delay: 260, easing: "ease-out", fill: "backwards" }
-  ));
-
-  let landed = false;
-  const land = () => {
-    if (landed) return;
-    landed = true;
-    deck.els.forEach(el => { el.style.opacity = ""; });
-    ghost.remove();
-    snap.remove();
-    // The cards underneath slide out from beneath the one that just landed.
-    deck.els.slice(1).forEach((el, i) => el.animate([{ transform: "none" }, { transform: depthTf(i + 1) }], { duration: 420, easing: EASE_SETTLE }));
-    zooming = false;
-  };
-  flight.onfinish = land;
-  setTimeout(land, ZOOM_MS + 400);
-}
-
-function closeDeck() {
-  if (zooming) return;
-  const kind = view.kind;
-  const top = deck.els[0];
-  const d = DECKS.find(x => x.id === kind);
-  if (reduceMotion() || !top || !d || modeOf(d) !== mode) { goHome(); return; }
-  zooming = true;
-  const from = top.getBoundingClientRect();
-  const card = top.cloneNode(true);
-  goHome();
-
-  const front = app.querySelector(`[data-deck="${kind}"] .front`);
-  const to = front && front.getBoundingClientRect();
-  const page = app.querySelector(".page");
-  if (!to || to.bottom < 0 || to.top > window.innerHeight) {
-    page.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240, easing: "ease-out" });
-    zooming = false;
-    return;
-  }
-  const { ghost, face } = makeGhost(card, from, 20, front);
-  front.style.visibility = "hidden";
-  const pr = page.getBoundingClientRect();
-  page.style.transformOrigin = `${to.left + to.width / 2 - pr.left}px ${to.top + to.height / 2 - pr.top}px`;
-  page.animate([{ opacity: 0, transform: "scale(1.08)" }, { opacity: 1, transform: "none" }], { duration: 460, easing: "cubic-bezier(.2,.7,.3,1)" });
-  app.querySelectorAll(".bottom-bar").forEach(el => el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, delay: 160, fill: "backwards" }));
-  const flight = ghost.animate([box(from, 20), box(to, 12)], { duration: ZOOM_MS - 40, easing: ZOOM_EASE, fill: "forwards" });
-  face.animate([{ opacity: 0 }, { opacity: 0, offset: 0.25 }, { opacity: 1, offset: 0.7 }, { opacity: 1 }], { duration: ZOOM_MS - 40, fill: "forwards" });
-
-  let landed = false;
-  const land = () => {
-    if (landed) return;
-    landed = true;
-    front.style.visibility = "";
-    ghost.remove();
-    zooming = false;
-  };
-  flight.onfinish = land;
-  setTimeout(land, ZOOM_MS + 400);
 }
 
 // ---------- Card deck ----------
