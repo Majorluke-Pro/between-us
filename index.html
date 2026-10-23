@@ -509,6 +509,35 @@ const DECKS = [
   // (Sue Johnson's Hold Me Tight conversations) and shared meaning (Gottman's rituals, roles, goals).
   // Both people answer every card, because closeness grows when disclosure is reciprocal (Aron et al.).
   {
+    id: "honest", mode: "serious", name: "Honestly", icon: "honest", depth: 3,
+    q: [
+      "What's your favourite part of my body that isn't my face?",
+      "What's something about how I look that I don't realise is attractive?",
+      "What's something about my looks that I'm self-conscious about, but you actually like?",
+      "Is there something about me that took a while to grow on you, but now you love?",
+      "What's a habit of mine you find quietly attractive?",
+      "What do you find sexy about me that has nothing to do with looks?",
+      "When did you last look at me and think, wow?",
+      "What's the most attractive thing I've done without realising it?",
+      "Do you prefer me dressed up or completely casual?",
+      "If you could change one thing about my style, what would it be? Be honest.",
+      "How attractive do you think you are to me, out of ten? Then I'll tell you the real number.",
+      "What do you think my biggest insecurity is? I'll tell you if you're right.",
+      "What's something about you physically that you wish I noticed or complimented more?",
+      "Is there a kind of affection in public you love, and one that's too much for you?",
+      "Have you ever been jealous in our relationship? What happened?",
+      "Is there anything about my past relationships you've wondered about but never asked?",
+      "What's something you've wanted to ask me but thought was too personal?",
+      "What's a compliment you've thought about me but never said out loud?",
+      "What's something your friends or family said about me that stuck with you?",
+      "If you described me to a stranger in three honest words, what would they be?",
+      "What do you think I'm worst at in our relationship?",
+      "What's one thing about me you'd change, and one thing you'd never change?",
+      "When do you feel the most physically comfortable around me?",
+      "What are you secretly proud of when people see us together?"
+    ]
+  },
+  {
     id: "under", mode: "serious", name: "Underneath", icon: "under", depth: 3,
     q: [
       "What's something you've never fully said out loud, even to yourself?",
@@ -519,14 +548,14 @@ const DECKS = [
       "What do you wish people understood about you without you having to explain it?",
       "What's a moment that changed how you see yourself?",
       "What's the kindest thing anyone has done for you, and why did it mean so much?",
-      "When do you feel like you're not enough?",
+      "What's something you've done that you're still not sure was right?",
       "What's a loss you don't think you've fully grieved?",
       "What do you criticise yourself for most, and is it fair?",
       "Which of your parents are you most like, and how do you feel about that?",
       "What's a dream you gave up on, and do you still think about it?",
-      "What makes you feel truly seen by another person?",
+      "What's a belief about yourself you picked up young that you're trying to unlearn?",
       "When did you last cry, and what was underneath it?",
-      "What do you need to hear more often but find hard to ask for?",
+      "What's a moment from your life you wish I understood better?",
       "What part of yourself are you still learning to accept?",
       "What would the people closest to you be surprised to learn you struggle with?",
       "What are you proud of that you rarely mention?",
@@ -543,7 +572,7 @@ const DECKS = [
       "When you feel distant from me, what's going on inside you?",
       "What's a sensitive spot from your past that I might accidentally press on?",
       "How can I tell when you need reassurance, even if you don't ask for it?",
-      "Do you ever hold back from telling me how you feel? What makes it hard?",
+      "What's one thing I say or do that instantly calms you down?",
       "What's one way I could show love that would mean more than I realise?",
       "When do you feel alone, even when we're together?",
       "What does feeling chosen by me look like on an ordinary day?",
@@ -616,7 +645,8 @@ const SUB = {
   us: "Your relationship", deep: "Life's big questions", values: "Beliefs and priorities",
   closer: "Romance and attraction", whatif: "Hypotheticals", fun: "Light and silly", rather: "Pick one, then explain",
   under: "Fears, history and the inner you", safe: "Needs, comfort and reassurance",
-  hard: "Conflict, hurt and making up", life: "Plans, roles and what we're building"
+  hard: "Conflict, hurt and making up", life: "Plans, roles and what we're building",
+  honest: "Direct questions about each other"
 };
 const MODE_NOTE = {
   casual: "Light to medium questions. Good for any night.",
@@ -634,6 +664,7 @@ const ICON = {
   whatif: '<path d="M7 18.5h10.5a4 4 0 0 0 .3-8 6 6 0 0 0-11.6 1.3A3.4 3.4 0 0 0 7 18.5z"/>',
   fun: '<circle cx="12" cy="12" r="9"/><path d="M8 14.5s1.5 2 4 2 4-2 4-2M9 9.5v1M15 9.5v1"/>',
   rather: '<path d="M12 21v-7.5M12 13.5 6.5 6M12 13.5 17.5 6M6 5.5h4M6 5.5v4M18 5.5h-4M18 5.5v4"/>',
+  honest: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   under: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12.5l9 5 9-5M3 17l9 5 9-5"/>',
   safe: '<path d="M12 3l7 3v5.5c0 4.3-2.9 7.8-7 9.5-4.1-1.7-7-5.2-7-9.5V6z"/>',
   hard: '<path d="M7 15h10.5a4 4 0 0 0 .3-8 6 6 0 0 0-11.6 1.3A3.4 3.4 0 0 0 7 15z"/><path d="M12.5 15l-2 3.5h3l-2 3.5"/>',
