@@ -180,6 +180,30 @@ button.row:active, .row-btn:active { background: var(--press); }
 .ctl.next { display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--btn); color: var(--btn-ink); border: 0; font-size: 17px; font-weight: 600; }
 .ctl.next:active { opacity: 0.85; }
 
+/* ---------- Deck packs on the home screen ---------- */
+.packs { display: grid; grid-template-columns: 1fr 1fr; gap: 26px 16px; padding: 6px 4px 0; }
+.pack { position: relative; display: block; width: 100%; aspect-ratio: 3 / 4; transition: transform 0.15s ease; }
+.pack:active { transform: scale(0.97); }
+.pack .face {
+  position: absolute; inset: 0; border-radius: 12px; background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); box-shadow: var(--shadow);
+}
+.pack .b2 { transform: rotate(-5deg) translate(-4px, 5px); }
+.pack .b1 { transform: rotate(3.5deg) translate(4px, 2px); }
+.pack .front { display: flex; flex-direction: column; justify-content: space-between; padding: 12px 12px 13px; text-align: left; }
+.pack-top { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pack-mark { align-self: center; }
+.pack-mark .ic { width: 44px; height: 44px; stroke-width: 1.3; }
+.pack-label { display: flex; flex-direction: column; min-width: 0; }
+.pack-name { font-size: 17px; font-weight: 700; line-height: 1.15; letter-spacing: -0.01em; }
+.pack-sub { font-size: 12.5px; line-height: 1.3; margin-top: 3px; color: var(--muted); }
+.pack-bar { display: block; height: 3px; border-radius: 3px; background: var(--line); margin-top: 10px; overflow: hidden; }
+.pack-bar i { display: block; height: 100%; background: currentColor; }
+/* Serious packs are printed in reverse, like the serious cards themselves. */
+.packs.serious .face { background: var(--btn); color: var(--btn-ink); border-color: color-mix(in srgb, var(--btn-ink) 16%, var(--btn)); }
+.packs.serious .pack-top, .packs.serious .pack-sub { color: color-mix(in srgb, var(--btn-ink) 60%, transparent); }
+.packs.serious .pack-bar { background: color-mix(in srgb, var(--btn-ink) 22%, transparent); }
+
 /* ---------- Casual / Serious toggle ---------- */
 .mode-wrap { display: flex; flex-direction: column; gap: 10px; }
 .mode {
@@ -1149,7 +1173,7 @@ function todayCard() {
 function deckList() {
   return `
     <h2 class="small-label group-label">${mode === "serious" ? "Serious decks" : "Decks"}</h2>
-    <div class="group">${DECKS.filter(d => modeOf(d) === mode).map(deckRow).join("")}</div>`;
+    <div class="packs${mode === "serious" ? " serious" : ""}">${DECKS.filter(d => modeOf(d) === mode).map(deckPack).join("")}</div>`;
 }
 
 function setMode(m) {
@@ -1211,13 +1235,22 @@ function renderHome() {
   document.getElementById("name-b").addEventListener("input", save);
 }
 
-function deckRow(d) {
+// Each deck is a mini pack: the front card plus two cards fanned out behind it.
+function deckPack(d) {
   const done = d.q.filter((_, i) => seen.has(d.id + ":" + i)).length;
   return `
-    <button class="row" data-deck="${d.id}">
-      ${svg(d.icon)}
-      <span class="row-main"><span class="row-title">${esc(d.name)}</span><span class="row-sub">${SUB[d.id]}</span></span>
-      <span class="row-meta">${done}/${d.q.length}</span>${svg("chev", "chev")}
+    <button class="pack" data-deck="${d.id}" aria-label="${esc(d.name)}, ${done} of ${d.q.length} asked">
+      <span class="face b2" aria-hidden="true"></span>
+      <span class="face b1" aria-hidden="true"></span>
+      <span class="face front">
+        <span class="pack-top"><span>${d.q.length} cards</span><span>${done}/${d.q.length}</span></span>
+        <span class="pack-mark">${svg(d.icon)}</span>
+        <span class="pack-label">
+          <span class="pack-name">${esc(d.name)}</span>
+          <span class="pack-sub">${SUB[d.id]}</span>
+          <span class="pack-bar"><i style="width:${Math.round(done / d.q.length * 100)}%"></i></span>
+        </span>
+      </span>
     </button>`;
 }
 
